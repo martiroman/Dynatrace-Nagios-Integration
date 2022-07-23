@@ -136,10 +136,8 @@ class DynatraceConnection(object):
 
     def sendMetrics(self):
         for host in self.lstHost:
-            payload = json.dumps(host.toJson()).replace("\\","").strip("\"")
-            print(payload)
-            r = requests.post(DT_API_URL + '/api/v1/entity/infrastructure/custom/' + host.displayName + '?Api-Token=' + DT_API_TOKEN, json=payload)
-            print(r.text)
+            r = requests.post(DT_API_URL + '/api/v1/entity/infrastructure/custom/' + host.displayName + '?Api-Token=' + DT_API_TOKEN, json=json.loads(host.toJson()))
+            print(r)
 
 class Integracion(object):
     def __init__(self):

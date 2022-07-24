@@ -4,7 +4,7 @@ Integracion Nagios-Dynatrace:
 Consulta los datos de hosts de Nagios a traves de MK-Livestatus y envia las metricas a Dynatrace creando el CUSTOM DEVICE
 en caso de no existir
 
-TODO: WHITELIST para seleccionar hosts a enviar a Dynatrace
+TODO: WHITELIST para seleccionar Metricas (Services) a enviar a Dynatrace
 TODO: Envio de problems por alerta a activa en Nagios
 TODO: Creacion de metricas descubiertas en un host de Nagios
 
@@ -22,7 +22,8 @@ from mk_livestatus import Socket
 DT_API_URL = CONFIGURAR
 DT_API_TOKEN = CONFIGURAR
 NAGIOS_SOCKET = '/usr/local/nagios/var/rw/nagios.qh'
-HOST_WHITELIST = False
+HOST_WHITELIST =  False #o ['host1','host2'...]
+SERVICE_WHITELIST = False #o ['service1','service2'...]
 
 #####CLASES###################################################################################################################
 class NagiosConnection(object):
@@ -137,17 +138,27 @@ class DynatraceConnection(object):
     def sendMetrics(self):
         for host in self.lstHost:
             r = requests.post(DT_API_URL + '/api/v1/entity/infrastructure/custom/' + host.displayName + '?Api-Token=' + DT_API_TOKEN, json=json.loads(host.toJson()))
-            print(r)
+            print(host.displayName +": " + r.text + " | " + r.reason)
 
 class Integracion(object):
     def __init__(self):
         self.NagiosConn = NagiosConnection()
         self.DynaConn = DynatraceConnection()
+        self.lstHosts = []
+
+    def CargarHosts(self):
+        tmpHosts = self.NagiosConn.getHosts()
+        if HOST_WHITELIST:
+            for naghost in tmpHosts:
+                if naghost["name"] in HOST_WHITELIST:
+                    self.lstHosts.append(naghost)
+        else:
+            self.lstHosts = tmpHosts
 
     def CargarMetricas(self):
         favicon = "http://assets.dynatrace.com/global/icons/infographic_rack.png"
-        lstHosts = self.NagiosConn.getHosts()
-        for host in lstHosts:
+        
+        for host in self.lstHosts:
             dHost = self.DynaConn.addCustomHost(host['name'], host['address'], '80', 'Nagios', favicon, '')
             lstServices = self.NagiosConn.getMetricas(host['name'])
             
@@ -163,6 +174,7 @@ class Integracion(object):
 def main():
     try:
         integracion = Integracion()
+        integracion.CargarHosts()
         integracion.CargarMetricas()
         integracion.EnviarDatos()
     except NagiosToDynaError as err:

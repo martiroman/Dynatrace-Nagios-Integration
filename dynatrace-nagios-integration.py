@@ -4,7 +4,6 @@ Integracion Nagios-Dynatrace:
 Consulta los datos de hosts de Nagios a traves de MK-Livestatus y envia las metricas a Dynatrace creando el CUSTOM DEVICE
 en caso de no existir
 
-TODO: WHITELIST para seleccionar Metricas (Services) a enviar a Dynatrace
 TODO: Envio de problems por alerta a activa en Nagios
 TODO: Creacion de metricas descubiertas en un host de Nagios
 
@@ -28,7 +27,6 @@ SERVICE_WHITELIST = False #o ['service1','service2'...]
 #####CLASES###################################################################################################################
 class NagiosConnection(object):
     """Realiza las querys al socket de Nagios"""
-
     def __init__(self):
         try:
             self._sock = Socket(NAGIOS_SOCKET)
@@ -36,6 +34,7 @@ class NagiosConnection(object):
             raise NagiosToDynaConnectError(err)
         
     def getHosts(self):
+        '''Realiza la query para obtener los hosts'''
         try:
             q = self._sock.hosts.columns('name', 'alias', 'address', 'groups')
             return q.call() 
@@ -43,6 +42,7 @@ class NagiosConnection(object):
             raise NagiosToDynaQueryError(err)
 
     def getMetricas(self, hostname):
+        '''Realiza la query para obtener los servicios y cada una de las metricas'''
         try:
             q = self._sock.services.columns('service_description', 'state', 'latency', 'perf_data',
                                             'process_performance_data', 'check_command', 'acknowledged','execution_time', 
@@ -52,6 +52,7 @@ class NagiosConnection(object):
             raise NagiosToDynaQueryError(err)
 
     def parsePerfData(self, perfData):
+        '''Parsea la PerfData de los Services de Nagios'''
         campos = {}
         for raw in perfData.split(" "):
             metrica = raw.split('=')
@@ -147,6 +148,7 @@ class Integracion(object):
         self.lstHosts = []
 
     def CargarHosts(self):
+        '''Obtiene el listado de hosts a monitorear'''
         tmpHosts = self.NagiosConn.getHosts()
         if HOST_WHITELIST:
             for naghost in tmpHosts:
@@ -156,18 +158,28 @@ class Integracion(object):
             self.lstHosts = tmpHosts
 
     def CargarMetricas(self):
+        '''Crea el Custom Host y le asocia cada una de las metricas'''
         favicon = "http://assets.dynatrace.com/global/icons/infographic_rack.png"
-        
+        lstServices = []
+
         for host in self.lstHosts:
             dHost = self.DynaConn.addCustomHost(host['name'], host['address'], '80', 'Nagios', favicon, '')
-            lstServices = self.NagiosConn.getMetricas(host['name'])
+            lstTmpServices = self.NagiosConn.getMetricas(host['name'])
+            
+            if SERVICE_WHITELIST:
+                for nagServ in lstTmpServices:
+                    if nagServ["service_description"] in SERVICE_WHITELIST:
+                        lstServices.append(nagServ)
+            else:
+                lstServices = lstTmpServices
             
             for service in lstServices:
                 lstMetricas = self.NagiosConn.parsePerfData(service["perf_data"])
                 for metrica in lstMetricas:
                     dHost.addSerie(service["description"], metrica, lstMetricas[metrica][0])
 
-    def EnviarDatos(self):
+    def EnviarMetricas(self):
+        '''Eviar los datos a Dynatrace'''
         self.DynaConn.sendMetrics()
 
 #####MAIN###############################################################################################################
@@ -176,7 +188,7 @@ def main():
         integracion = Integracion()
         integracion.CargarHosts()
         integracion.CargarMetricas()
-        integracion.EnviarDatos()
+        integracion.EnviarMetricas()
     except NagiosToDynaError as err:
         print(err)
 

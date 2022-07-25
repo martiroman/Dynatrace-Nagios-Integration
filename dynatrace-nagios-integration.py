@@ -13,6 +13,7 @@ import datetime
 import json
 import time
 import requests
+import sched
 
 #https://github.com/arthru/python-mk-livestatus
 from mk_livestatus import Socket
@@ -99,9 +100,11 @@ class Serie(object):
     def addDataPoint(self, tiempo, valor):
         dp = DataPoint(tiempo, valor)
         self.dataPoints.append(dp.formatDataPoint())
-                        
+
+#"properties" : { "myProperty" : "anyvalue", "myTestProperty2" : "anyvalue"
+# "hostNames": [ "coffee-machine.dynatrace.internal.com" ]                        
 class CustomHost(object):
-    def __init__(self, displayName, ipAdresses, listenPorts, type, favicon, configUrl):
+    def __init__(self, displayName, ipAdresses, listenPorts, type, favicon, configUrl, grupo):
         self.displayName = displayName
         self.ipAdresses = [ipAdresses]
         self.listenPorts = [listenPorts]
@@ -109,12 +112,17 @@ class CustomHost(object):
         self.favicon = favicon
         self.configUrl = configUrl
         self.series = []
-        
+        self.tags = []
+        self.group = grupo
+
     def addSerie(self, servicename, metrica, valor):
         dt = datetime.datetime.now()
         serie = Serie(servicename, metrica)
         serie.addDataPoint(dt, valor)
         self.series.append(serie)
+
+    def addTag(self, value):
+        self.tags = value
 
     def toJson(self):
         return json.dumps(self, default=lambda o: o.__dict__)
@@ -123,8 +131,8 @@ class DynatraceConnection(object):
     def __init__(self):
         self.lstHost = []
 
-    def addCustomHost(self, name, address, puerto, type, favicon, configUrl):
-        dHost = CustomHost(name, address, puerto, type, favicon, configUrl)
+    def addCustomHost(self, name, address, puerto, type, favicon, configUrl, grupo):
+        dHost = CustomHost(name, address, puerto, type, favicon, configUrl, grupo)
         self.lstHost.append(dHost)
         return dHost
 
@@ -163,7 +171,9 @@ class Integracion(object):
         lstServices = []
 
         for host in self.lstHosts:
-            dHost = self.DynaConn.addCustomHost(host['name'], host['address'], '80', 'Nagios', favicon, '')
+            #TODO: Configurar puertos del host
+            dHost = self.DynaConn.addCustomHost(host['name'], host['address'], '9100', 'Nagios', favicon, '', host['groups'][0])
+            dHost.addTag(host['groups'])
             lstTmpServices = self.NagiosConn.getMetricas(host['name'])
             
             if SERVICE_WHITELIST:
@@ -183,12 +193,31 @@ class Integracion(object):
         self.DynaConn.sendMetrics()
 
 #####MAIN###############################################################################################################
+oInteg = Integracion()
+s = sched.scheduler(time.time, time.sleep)
+
+def programa(start, end, interval, func, args=()):
+    event_time = start
+    while event_time < end:
+        s.enterabs(event_time, 0, func, args)
+        event_time += interval
+
+    s.run()
+
+def service_integration():
+    oInteg.CargarMetricas()
+    oInteg.EnviarMetricas()
+
+
 def main():
     try:
-        integracion = Integracion()
-        integracion.CargarHosts()
-        integracion.CargarMetricas()
-        integracion.EnviarMetricas()
+        oInteg.CargarHosts()
+
+        print("Inicio - Recoleccion de Metricas de Nagios")
+
+        #Ajustar los tiempos (+100000 1 dia)
+        programa(time.time()+5, time.time()+100000, 90, service_integration)
+
     except NagiosToDynaError as err:
         print(err)
 

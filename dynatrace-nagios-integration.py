@@ -4,7 +4,6 @@ Integracion Nagios-Dynatrace:
 Consulta los datos de hosts de Nagios a traves de MK-Livestatus y envia las metricas a Dynatrace creando el CUSTOM DEVICE
 en caso de no existir
 
-TODO: Envio de problems por alerta a activa en Nagios
 TODO: Creacion de metricas descubiertas en un host de Nagios
 
 """
@@ -101,13 +100,26 @@ class Serie(object):
         dp = DataPoint(tiempo, valor)
         self.dataPoints.append(dp.formatDataPoint())
 
+class Event(object):
+    def __init__(self, eventType, title, startTime, endTime, entitySelector):
+        self.eventType = eventType
+        self.title = title
+        self.startTime = startTime
+        self.endTime = endTime
+        self.timeout = 0
+        self.entitySelector = entitySelector
+        self.properties = {}
+
+    def toJson(self):
+        return json.dumps(self, default=lambda o: o.__dict__)
+        
 #"properties" : { "myProperty" : "anyvalue", "myTestProperty2" : "anyvalue"
 # "hostNames": [ "coffee-machine.dynatrace.internal.com" ]                        
 class CustomHost(object):
     def __init__(self, displayName, ipAdresses, listenPorts, type, favicon, configUrl, grupo):
         self.displayName = displayName
         self.ipAdresses = [ipAdresses]
-        self.listenPorts = [listenPorts]
+        self.listenPorts = listenPorts
         self.type = type
         self.favicon = favicon
         self.configUrl = configUrl
@@ -129,25 +141,47 @@ class CustomHost(object):
 
 class DynatraceConnection(object):
     def __init__(self):
-        self.lstHost = []
+        self.lstHosts = []
+        self.lstEvents = []
 
     def addCustomHost(self, name, address, puerto, type, favicon, configUrl, grupo):
         dHost = CustomHost(name, address, puerto, type, favicon, configUrl, grupo)
-        self.lstHost.append(dHost)
+        self.lstHosts.append(dHost)
         return dHost
 
     def createMetric():
         #TODO: Crear metrica en Dyna
         '''Pendiente'''
     
-    def sendProblems():
-        #TODO: Crear problem en Dyna
-        '''Pendiente'''
+    def createEvent(self, eventType, title, startTime, endTime, entitySelector):
+        '''Si el evento no existe lo agrega a la vista'''
+        creado = False
+        dEvent = Event(eventType, title, startTime, endTime, entitySelector)
+        if not dEvent in self.lstEvents:
+            self.lstEvents.append(dEvent)
+            creado = True
+        return creado
 
+    def checkIfEvent(self, hostName, serviceName, state):
+        dt = datetime.datetime.now()
+        creado = False
+        timestamp = int(time.mktime(dt.timetuple()) * 1000)
+        titulo = "Alerta: " + serviceName
+        
+        if state > 0:
+            creado = self.createEvent("CUSTOM_ALERT", titulo, timestamp, 0, hostName)
+
+        return creado
+            
     def sendMetrics(self):
-        for host in self.lstHost:
+        for host in self.lstHosts:
             r = requests.post(DT_API_URL + '/api/v1/entity/infrastructure/custom/' + host.displayName + '?Api-Token=' + DT_API_TOKEN, json=json.loads(host.toJson()))
             print(host.displayName +": " + r.text + " | " + r.reason)
+
+    def sendEvents(self):
+        for event in self.lstEvents:
+            r = requests.post(DT_API_URL + '/api/v2/events/ingest?Api-Token=' + DT_API_TOKEN, json=json.loads(event.toJson()))
+            print(event.entitySelector + " | " + event.title + " | " + r.text)
 
 class Integracion(object):
     def __init__(self):
@@ -172,7 +206,7 @@ class Integracion(object):
 
         for host in self.lstHosts:
             #TODO: Configurar puertos del host
-            dHost = self.DynaConn.addCustomHost(host['name'], host['address'], '9100', 'Nagios', favicon, '', host['groups'][0])
+            dHost = self.DynaConn.addCustomHost(host['name'], host['address'], ['80','8080','443','8428','9100','9104','53862','53852'], 'Nagios', favicon, '', host['groups'][0])
             dHost.addTag(host['groups'])
             lstTmpServices = self.NagiosConn.getMetricas(host['name'])
             
@@ -184,6 +218,7 @@ class Integracion(object):
                 lstServices = lstTmpServices
             
             for service in lstServices:
+                self.DynaConn.checkIfEvent(dHost.displayName, service["description"], service["state"])
                 lstMetricas = self.NagiosConn.parsePerfData(service["perf_data"])
                 for metrica in lstMetricas:
                     dHost.addSerie(service["description"], metrica, lstMetricas[metrica][0])
@@ -191,6 +226,10 @@ class Integracion(object):
     def EnviarMetricas(self):
         '''Eviar los datos a Dynatrace'''
         self.DynaConn.sendMetrics()
+
+    def EnviarEventos(self):
+        '''Eviar los eventos a Dynatrace'''
+        self.DynaConn.sendEvents()
 
 #####MAIN###############################################################################################################
 oInteg = Integracion()
@@ -207,6 +246,7 @@ def programa(start, end, interval, func, args=()):
 def service_integration():
     oInteg.CargarMetricas()
     oInteg.EnviarMetricas()
+    #oInteg.EnviarEventos()
 
 
 def main():

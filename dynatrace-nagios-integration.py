@@ -119,8 +119,8 @@ class Event(object):
         #self.startTime = startTime
         #self.endTime = endTime
         #The timeout will automatically be capped to a maximum of 300 minutes (5 hours). Problem-opening events can be refreshed and therefore kept open by sending the same payload again. 
-        self.timeout = 0
-        self.entitySelector ="type(HOST),entityName(" + entitySelector + ")" 
+        self.timeout = 300
+        self.entitySelector ="type(CUSTOM_DEVICE),entityName(" + entitySelector + ")" 
         self.properties = {}
 
     def toJson(self):
@@ -187,13 +187,17 @@ class DynatraceConnection(object):
     def sendMetrics(self):
         for host in self.lstHosts:
             r = requests.post(DT_API_URL + '/api/v1/entity/infrastructure/custom/' + host.displayName + '?Api-Token=' + DT_API_TOKEN, json=json.loads(host.toJson()))
+            print("\n PAYLOAD: ")
+            print(json.loads(host.toJson()))
             print(host.displayName +": " + r.text + " | " + r.reason)
 
     def sendEvents(self):
         for event in self.lstEvents:
             r = requests.post(DT_API_URL + '/api/v2/events/ingest?Api-Token=' + DT_API_TOKEN, json=json.loads(event.toJson()))
+            print("\n PAYLOAD: ") 
+            print(json.loads(event.toJson()))
             print(event.entitySelector + " | " + event.title + " | " + r.text)
-            r.re
+            
     def createMetric():
         #TODO: Crear metrica en Dyna
         '''Pendiente'''

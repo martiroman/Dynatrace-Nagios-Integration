@@ -6,6 +6,17 @@ en caso de no existir
 
 TODO: Creacion de metricas descubiertas en un host de Nagios
 
+Dynatrace Type Events:
+    AVAILABILITY_EVENT
+    CUSTOM_ALERT
+    CUSTOM_ANNOTATION
+    CUSTOM_CONFIGURATION
+    CUSTOM_DEPLOYMENT
+    CUSTOM_INFO
+    ERROR_EVENT
+    MARKED_FOR_TERMINATION
+    PERFORMANCE_EVENT
+    RESOURCE_CONTENTION_EVENT
 """
 import re
 import datetime
@@ -104,10 +115,12 @@ class Event(object):
     def __init__(self, eventType, title, startTime, endTime, entitySelector):
         self.eventType = eventType
         self.title = title
-        self.startTime = startTime
-        self.endTime = endTime
+        #Si es null toma la hora actual
+        #self.startTime = startTime
+        #self.endTime = endTime
+        #The timeout will automatically be capped to a maximum of 300 minutes (5 hours). Problem-opening events can be refreshed and therefore kept open by sending the same payload again. 
         self.timeout = 0
-        self.entitySelector = entitySelector
+        self.entitySelector ="type(HOST),entityName(" + entitySelector + ")" 
         self.properties = {}
 
     def toJson(self):
@@ -148,30 +161,28 @@ class DynatraceConnection(object):
         dHost = CustomHost(name, address, puerto, type, favicon, configUrl, grupo)
         self.lstHosts.append(dHost)
         return dHost
-
-    def createMetric():
-        #TODO: Crear metrica en Dyna
-        '''Pendiente'''
     
-    def createEvent(self, eventType, title, startTime, endTime, entitySelector):
-        '''Si el evento no existe lo agrega a la vista'''
-        creado = False
+    def addEvent(self, eventType, title, startTime, endTime, entitySelector):
         dEvent = Event(eventType, title, startTime, endTime, entitySelector)
-        if not dEvent in self.lstEvents:
-            self.lstEvents.append(dEvent)
-            creado = True
-        return creado
-
+        self.lstEvents.append(dEvent)
+            
     def checkIfEvent(self, hostName, serviceName, state):
         dt = datetime.datetime.now()
-        creado = False
         timestamp = int(time.mktime(dt.timetuple()) * 1000)
         titulo = "Alerta: " + serviceName
-        
-        if state > 0:
-            creado = self.createEvent("CUSTOM_ALERT", titulo, timestamp, 0, hostName)
+        selector = "type(HOST),entityName(" + hostName + "))"
+        encontrado = False
 
-        return creado
+        for event in self.lstEvents:
+            if event.entitySelector == selector and event.title == titulo:
+                encontrado = True
+
+        if encontrado == True:
+            if state == 0:
+                print("eliminar evento")
+        else:
+            if state > 0:                 
+                self.addEvent("CUSTOM_ALERT", titulo, timestamp, 0, hostName)
             
     def sendMetrics(self):
         for host in self.lstHosts:
@@ -182,6 +193,10 @@ class DynatraceConnection(object):
         for event in self.lstEvents:
             r = requests.post(DT_API_URL + '/api/v2/events/ingest?Api-Token=' + DT_API_TOKEN, json=json.loads(event.toJson()))
             print(event.entitySelector + " | " + event.title + " | " + r.text)
+            r.re
+    def createMetric():
+        #TODO: Crear metrica en Dyna
+        '''Pendiente'''
 
 class Integracion(object):
     def __init__(self):
@@ -246,7 +261,7 @@ def programa(start, end, interval, func, args=()):
 def service_integration():
     oInteg.CargarMetricas()
     oInteg.EnviarMetricas()
-    #oInteg.EnviarEventos()
+    oInteg.EnviarEventos()
 
 
 def main():

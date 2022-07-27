@@ -22,8 +22,8 @@ Dynatrace Type Events:
 import time
 import sched
 
-import DynatraceConnection
-import NagiosConnection
+import DynatraceApp
+import NagiosApp
 import IntegrationErrors
 
 #####CONFIGURACION############################################################################################################
@@ -37,7 +37,7 @@ SERVICE_WHITELIST = False #o ['service1','service2'...]
 
 class Integracion(object):
     def __init__(self):
-        self.NagiosConn = NagiosConnection()
+        self.NagiosConn = Nagios.Connection()
         self.DynaConn = DynatraceConnection()
         self.lstHosts = []
 

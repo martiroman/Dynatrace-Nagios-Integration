@@ -3,7 +3,7 @@ import re
 #https://github.com/arthru/python-mk-livestatus
 from mk_livestatus import Socket
 
-class NagiosConnection(object):
+class Connection(object):
     """Realiza las querys al socket de Nagios"""
     def __init__(self):
         try:

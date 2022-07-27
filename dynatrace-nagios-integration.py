@@ -18,15 +18,13 @@ Dynatrace Type Events:
     PERFORMANCE_EVENT
     RESOURCE_CONTENTION_EVENT
 """
-import re
-import datetime
-import json
+
 import time
-import requests
 import sched
 
-#https://github.com/arthru/python-mk-livestatus
-from mk_livestatus import Socket
+import DynatraceConnection
+import NagiosConnection
+import IntegrationErrors
 
 #####CONFIGURACION############################################################################################################
 DT_API_URL = CONFIGURAR
@@ -36,171 +34,6 @@ HOST_WHITELIST =  False #o ['host1','host2'...]
 SERVICE_WHITELIST = False #o ['service1','service2'...]
 
 #####CLASES###################################################################################################################
-class NagiosConnection(object):
-    """Realiza las querys al socket de Nagios"""
-    def __init__(self):
-        try:
-            self._sock = Socket(NAGIOS_SOCKET)
-        except Exception as err:
-            raise NagiosToDynaConnectError(err)
-        
-    def getHosts(self):
-        '''Realiza la query para obtener los hosts'''
-        try:
-            q = self._sock.hosts.columns('name', 'alias', 'address', 'groups')
-            return q.call() 
-        except Exception as err:
-            raise NagiosToDynaQueryError(err)
-
-    def getMetricas(self, hostname):
-        '''Realiza la query para obtener los servicios y cada una de las metricas'''
-        try:
-            q = self._sock.services.columns('service_description', 'state', 'latency', 'perf_data',
-                                            'process_performance_data', 'check_command', 'acknowledged','execution_time', 
-                                            'is_flapping').filter('host_name = ' + hostname)
-            return q.call()
-        except Exception as err:
-            raise NagiosToDynaQueryError(err)
-
-    def parsePerfData(self, perfData):
-        '''Parsea la PerfData de los Services de Nagios'''
-        campos = {}
-        for raw in perfData.split(" "):
-            metrica = raw.split('=')
-            nombre = metrica[0]
-            datos = metrica[1].split(';')
-            
-            valorMetricaSinFormato = re.compile('([0-9.]+)([^0-9.]+)?').match(datos[0])
-            if not valorMetricaSinFormato:
-                 valorMetrica = datos[0]
-                 unidad = ''
-            else:
-                valor, unidad = valorMetricaSinFormato.groups('')
-            
-            datos[0] = valor
-            datos.append(unidad)
-            campos[nombre] = datos
-        return campos
-
-class NagiosToDynaError(Exception):
-    """Errores de la integracion"""
-
-class NagiosToDynaQueryError(NagiosToDynaError):
-    """Fallo en la query al socket"""
-
-class NagiosToDynaConnectError(NagiosToDynaError):
-    """Error de conexion al socket"""
-
-##Clases Dynatrace
-class DataPoint(object):
-    def __init__(self, tiempo, valor):
-        self.timestamp = int(time.mktime(tiempo.timetuple()) * 1000)
-        self.valor = valor
-
-    #TODO: Si no es valor numerico
-    def formatDataPoint(self):
-        return [self.timestamp, float(self.valor)]
-
-class Serie(object):
-    def __init__(self, ServiceName, dimensions):
-        self.timeseriesId = 'custom:host.service.' + ServiceName.replace(" ", "").lower()
-        self.dimensions = { 'metrica' : dimensions }
-        self.dataPoints = []
-    
-    def addDataPoint(self, tiempo, valor):
-        dp = DataPoint(tiempo, valor)
-        self.dataPoints.append(dp.formatDataPoint())
-
-class Event(object):
-    def __init__(self, eventType, title, startTime, endTime, entitySelector):
-        self.eventType = eventType
-        self.title = title
-        #Si es null toma la hora actual
-        #self.startTime = startTime
-        #self.endTime = endTime
-        #The timeout will automatically be capped to a maximum of 300 minutes (5 hours). Problem-opening events can be refreshed and therefore kept open by sending the same payload again. 
-        self.timeout = 300
-        self.entitySelector ="type(CUSTOM_DEVICE),entityName(" + entitySelector + ")" 
-        self.properties = {}
-
-    def toJson(self):
-        return json.dumps(self, default=lambda o: o.__dict__)
-        
-#"properties" : { "myProperty" : "anyvalue", "myTestProperty2" : "anyvalue"
-# "hostNames": [ "coffee-machine.dynatrace.internal.com" ]                        
-class CustomHost(object):
-    def __init__(self, displayName, ipAdresses, listenPorts, type, favicon, configUrl, grupo):
-        self.displayName = displayName
-        self.ipAdresses = [ipAdresses]
-        self.listenPorts = listenPorts
-        self.type = type
-        self.favicon = favicon
-        self.configUrl = configUrl
-        self.series = []
-        self.tags = []
-        self.group = grupo
-
-    def addSerie(self, servicename, metrica, valor):
-        dt = datetime.datetime.now()
-        serie = Serie(servicename, metrica)
-        serie.addDataPoint(dt, valor)
-        self.series.append(serie)
-
-    def addTag(self, value):
-        self.tags = value
-
-    def toJson(self):
-        return json.dumps(self, default=lambda o: o.__dict__)
-
-class DynatraceConnection(object):
-    def __init__(self):
-        self.lstHosts = []
-        self.lstEvents = []
-
-    def addCustomHost(self, name, address, puerto, type, favicon, configUrl, grupo):
-        dHost = CustomHost(name, address, puerto, type, favicon, configUrl, grupo)
-        self.lstHosts.append(dHost)
-        return dHost
-    
-    def addEvent(self, eventType, title, startTime, endTime, entitySelector):
-        dEvent = Event(eventType, title, startTime, endTime, entitySelector)
-        self.lstEvents.append(dEvent)
-            
-    def checkIfEvent(self, hostName, serviceName, state):
-        dt = datetime.datetime.now()
-        timestamp = int(time.mktime(dt.timetuple()) * 1000)
-        titulo = "Alerta: " + serviceName
-        selector = "type(HOST),entityName(" + hostName + "))"
-        encontrado = False
-
-        for event in self.lstEvents:
-            if event.entitySelector == selector and event.title == titulo:
-                encontrado = True
-
-        if encontrado == True:
-            if state == 0:
-                print("eliminar evento")
-        else:
-            if state > 0:                 
-                self.addEvent("CUSTOM_ALERT", titulo, timestamp, 0, hostName)
-            
-    def sendMetrics(self):
-        for host in self.lstHosts:
-            r = requests.post(DT_API_URL + '/api/v1/entity/infrastructure/custom/' + host.displayName + '?Api-Token=' + DT_API_TOKEN, json=json.loads(host.toJson()))
-            print("\n PAYLOAD: ")
-            print(json.loads(host.toJson()))
-            print(host.displayName +": " + r.text + " | " + r.reason)
-
-    def sendEvents(self):
-        for event in self.lstEvents:
-            r = requests.post(DT_API_URL + '/api/v2/events/ingest?Api-Token=' + DT_API_TOKEN, json=json.loads(event.toJson()))
-            print("\n PAYLOAD: ") 
-            print(json.loads(event.toJson()))
-            print(event.entitySelector + " | " + event.title + " | " + r.text)
-            
-    def createMetric():
-        #TODO: Crear metrica en Dyna
-        '''Pendiente'''
 
 class Integracion(object):
     def __init__(self):
@@ -277,7 +110,7 @@ def main():
         #Ajustar los tiempos (+100000 1 dia)
         programa(time.time()+5, time.time()+100000, 90, service_integration)
 
-    except NagiosToDynaError as err:
+    except IntegrationErrors.NagiosToDynaError as err:
         print(err)
 
 if __name__ == '__main__':

@@ -1,5 +1,11 @@
+'''
+Nagios LiveStatus
+
+Obtiene hosts y servicios asociados con sus respectivos estados
+'''
 import IntegrationErrors
 import re
+
 #https://github.com/arthru/python-mk-livestatus
 from mk_livestatus import Socket
 

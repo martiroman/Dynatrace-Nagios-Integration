@@ -1,4 +1,11 @@
-from ast import Compare
+'''
+Dynatrace API
+
++ CustomHosts
++ Metrics
+
+'''
+
 from operator import truediv
 import requests
 import time
@@ -73,7 +80,7 @@ class CustomHost(object):
 
     def clearSeries(self):
         self.series = []
-        
+
     def toJson(self):
         return json.dumps(self, default=lambda o: o.__dict__)
 

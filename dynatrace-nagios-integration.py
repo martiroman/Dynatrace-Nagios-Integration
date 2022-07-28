@@ -4,8 +4,6 @@ Integracion Nagios-Dynatrace:
 Consulta los datos de hosts de Nagios a traves de MK-Livestatus y envia las metricas a Dynatrace creando el CUSTOM DEVICE
 en caso de no existir
 
-TODO: Creacion de metricas descubiertas en un host de Nagios
-
 Dynatrace Type Events:
     AVAILABILITY_EVENT
     CUSTOM_ALERT

@@ -1,3 +1,7 @@
+''' 
+Manejo de errores
+
+'''
 class IntegrationErrors(Exception):
     """Errores"""
 

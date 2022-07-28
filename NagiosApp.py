@@ -5,9 +5,10 @@ from mk_livestatus import Socket
 
 class Connection(object):
     """Realiza las querys al socket de Nagios"""
-    def __init__(self):
+    def __init__(self, nagios_socket):
         try:
-            self._sock = Socket(NAGIOS_SOCKET)
+            self.nagios_socket = nagios_socket
+            self._sock = Socket(self.nagios_socket)
         except Exception as err:
             raise IntegrationErrors.NagiosToDynaConnectError(err)
         

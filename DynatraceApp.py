@@ -66,7 +66,9 @@ class CustomHost(object):
         return json.dumps(self, default=lambda o: o.__dict__)
 
 class Connection(object):
-    def __init__(self):
+    def __init__(self, api_url, api_token):
+        self.api_url = api_url
+        self.api_token = api_token
         self.lstHosts = []
         self.lstEvents = []
 
@@ -101,14 +103,14 @@ class Connection(object):
             
     def sendMetrics(self):
         for host in self.lstHosts:
-            r = requests.post(DT_API_URL + '/api/v1/entity/infrastructure/custom/' + host.displayName + '?Api-Token=' + DT_API_TOKEN, json=json.loads(host.toJson()))
+            r = requests.post(self.api_url + '/api/v1/entity/infrastructure/custom/' + host.displayName + '?Api-Token=' + self.api_token, json=json.loads(host.toJson()))
             print("\n PAYLOAD: ")
             print(json.loads(host.toJson()))
             print(host.displayName +": " + r.text + " | " + r.reason)
 
     def sendEvents(self):
         for event in self.lstEvents:
-            r = requests.post(DT_API_URL + '/api/v2/events/ingest?Api-Token=' + DT_API_TOKEN, json=json.loads(event.toJson()))
+            r = requests.post(self.api_url + '/api/v2/events/ingest?Api-Token=' + self.api_token, json=json.loads(event.toJson()))
             print("\n PAYLOAD: ") 
             print(json.loads(event.toJson()))
             print(event.entitySelector + " | " + event.title + " | " + r.text)

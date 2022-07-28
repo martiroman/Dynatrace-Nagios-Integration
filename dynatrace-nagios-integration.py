@@ -37,8 +37,8 @@ SERVICE_WHITELIST = False #o ['service1','service2'...]
 
 class Integracion(object):
     def __init__(self):
-        self.NagiosConn = NagiosApp.Connection()
-        self.DynaConn = DynatraceApp.Connection()
+        self.NagiosConn = NagiosApp.Connection(NAGIOS_SOCKET)
+        self.DynaConn = DynatraceApp.Connection(DT_API_URL, DT_API_TOKEN)
         self.lstHosts = []
 
     def CargarHosts(self):

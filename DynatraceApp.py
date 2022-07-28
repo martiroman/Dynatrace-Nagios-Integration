@@ -1,3 +1,5 @@
+from ast import Compare
+from operator import truediv
 import requests
 import time
 import datetime
@@ -24,7 +26,7 @@ class Serie(object):
         self.dataPoints.append(dp.formatDataPoint())
 
 class Event(object):
-    def __init__(self, eventType, title, startTime, endTime, entitySelector):
+    def __init__(self, eventType, title, entitySelector):
         self.eventType = eventType
         self.title = title
         #Si es null toma la hora actual
@@ -35,10 +37,18 @@ class Event(object):
         self.entitySelector ="type(CUSTOM_DEVICE),entityName(" + entitySelector + ")" 
         self.properties = {}
 
+    def CompareEvents(event, title, hostname):
+        entitySelector ="type(CUSTOM_DEVICE),entityName(" + hostname + ")"
+        print(event.title +"-"+ title)
+        print(event.entitySelector +"-"+ entitySelector)
+        if event.title == title and event.entitySelector == entitySelector:
+            return True
+        return False
+
     def toJson(self):
-        return json.dumps(self, default=lambda o: o.__dict__)
+        return json.dumps(self, default=lambda o: o.__dict__, 
+            sort_keys=True, indent=4)
         
-#"properties" : { "myProperty" : "anyvalue", "myTestProperty2" : "anyvalue"
 # "hostNames": [ "coffee-machine.dynatrace.internal.com" ]                        
 class CustomHost(object):
     def __init__(self, displayName, ipAdresses, listenPorts, type, favicon, configUrl, grupo):
@@ -51,7 +61,7 @@ class CustomHost(object):
         self.series = []
         self.tags = []
         self.group = grupo
-        self.properties = { "'ip' : " + ipAdresses }
+        self.properties = { 'ip' : ipAdresses }
 
     def addSerie(self, servicename, metrica, valor):
         dt = datetime.datetime.now()
@@ -77,19 +87,16 @@ class Connection(object):
         self.lstHosts.append(dHost)
         return dHost
     
-    def addEvent(self, eventType, title, startTime, endTime, entitySelector):
-        dEvent = Event(eventType, title, startTime, endTime, entitySelector)
+    def addEvent(self, eventType, title, entitySelector):
+        dEvent = Event(eventType, title, entitySelector)
         self.lstEvents.append(dEvent)
             
     def checkIfEvent(self, hostName, serviceName, state):
-        dt = datetime.datetime.now()
-        timestamp = int(time.mktime(dt.timetuple()) * 1000)
         titulo = "Alerta: " + serviceName
-        selector = "type(HOST),entityName(" + hostName + "))"
         encontrado = False
 
         for event in self.lstEvents:
-            if event.entitySelector == selector and event.title == titulo:
+            if Event.CompareEvents(event, titulo, hostName):
                 encontrado = True
 
         if encontrado == True:
@@ -99,7 +106,7 @@ class Connection(object):
         else:
             if state > 0:   
                 #Si el evento tiene ACK enviar el Cierre a Dynatrace              
-                self.addEvent("CUSTOM_ALERT", titulo, timestamp, 0, hostName)
+                self.addEvent("CUSTOM_ALERT", titulo, hostName)
             
     def sendMetrics(self):
         for host in self.lstHosts:

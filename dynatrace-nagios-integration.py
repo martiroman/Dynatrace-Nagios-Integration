@@ -43,38 +43,32 @@ class Integracion(object):
 
     def CargarHosts(self):
         '''Obtiene el listado de hosts a monitorear'''
+        favicon = "http://assets.dynatrace.com/global/icons/infographic_rack.png"
         tmpHosts = self.NagiosConn.getHosts()
-        if HOST_WHITELIST:
-            for naghost in tmpHosts:
-                if naghost["name"] in HOST_WHITELIST:
-                    self.lstHosts.append(naghost)
-        else:
-            self.lstHosts = tmpHosts
+        
+        for host in tmpHosts:
+            if (HOST_WHITELIST and host["name"] in HOST_WHITELIST) or not HOST_WHITELIST:
+                #TODO: Configurar puertos del host
+                dHost = self.DynaConn.addCustomHost(host['name'], host['address'], ['80','8080','443','8428','9100','9104','53862','53852'], 'Nagios', favicon, '', host['groups'][0])
+                dHost.addTag(host['groups'])
+                self.lstHosts.append(dHost)
 
     def CargarMetricas(self):
-        '''Crea el Custom Host y le asocia cada una de las metricas'''
-        favicon = "http://assets.dynatrace.com/global/icons/infographic_rack.png"
-        lstServices = []
+        '''Consulta los servicios de Nagios y asigna cada una de las metricas a los CustomHosts'''
 
         for host in self.lstHosts:
-            #TODO: Configurar puertos del host
-            dHost = self.DynaConn.addCustomHost(host['name'], host['address'], ['80','8080','443','8428','9100','9104','53862','53852'], 'Nagios', favicon, '', host['groups'][0])
-            dHost.addTag(host['groups'])
-            lstTmpServices = self.NagiosConn.getMetricas(host['name'])
-            
-            if SERVICE_WHITELIST:
-                for nagServ in lstTmpServices:
-                    if nagServ["service_description"] in SERVICE_WHITELIST:
-                        lstServices.append(nagServ)
-            else:
-                lstServices = lstTmpServices
-            
+            lstServices = []
+            lstTmpServices = self.NagiosConn.getMetricas(host.displayName)
+            for nagServ in lstTmpServices:
+                if (SERVICE_WHITELIST and nagServ["service_description"] in SERVICE_WHITELIST) or not SERVICE_WHITELIST:
+                    lstServices.append(nagServ)
+
             for service in lstServices:
-                self.DynaConn.checkIfEvent(dHost.displayName, service["description"], service["state"])
+                self.DynaConn.checkIfEvent(host.displayName, service["description"], service["state"])
                 lstMetricas = self.NagiosConn.parsePerfData(service["perf_data"])
                 for metrica in lstMetricas:
-                    dHost.addSerie(service["description"], metrica, lstMetricas[metrica][0])
-
+                    host.addSerie(service["description"], metrica, lstMetricas[metrica][0])
+                    
     def EnviarMetricas(self):
         '''Eviar los datos a Dynatrace'''
         self.DynaConn.sendMetrics()
@@ -99,7 +93,6 @@ def service_integration():
     oInteg.CargarMetricas()
     oInteg.EnviarMetricas()
     oInteg.EnviarEventos()
-
 
 def main():
     try:

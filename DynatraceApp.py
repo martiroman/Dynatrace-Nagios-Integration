@@ -39,7 +39,6 @@ class Event(object):
 
     def CompareEvents(event, title, hostname):
         entitySelector ="type(CUSTOM_DEVICE),entityName(" + hostname + ")"
-        print(event.title +"-"+ title)
         print(event.entitySelector +"-"+ entitySelector)
         if event.title == title and event.entitySelector == entitySelector:
             return True
@@ -72,6 +71,9 @@ class CustomHost(object):
     def addTag(self, value):
         self.tags = value
 
+    def clearSeries(self):
+        self.series = []
+        
     def toJson(self):
         return json.dumps(self, default=lambda o: o.__dict__)
 
@@ -121,7 +123,10 @@ class Connection(object):
             print("\n PAYLOAD: ") 
             print(json.loads(event.toJson()))
             print(event.entitySelector + " | " + event.title + " | " + r.text)
-            
+
+    def emptyCache(self):
+        self.lstHosts = []
+
     def createMetric():
         #TODO: Crear metrica en Dyna
         '''Pendiente'''

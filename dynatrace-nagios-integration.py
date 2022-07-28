@@ -62,13 +62,17 @@ class Integracion(object):
             for nagServ in lstTmpServices:
                 if (SERVICE_WHITELIST and nagServ["service_description"] in SERVICE_WHITELIST) or not SERVICE_WHITELIST:
                     lstServices.append(nagServ)
-
+            
+            host.clearSeries()
             for service in lstServices:
+                
                 self.DynaConn.checkIfEvent(host.displayName, service["description"], service["state"])
+                
                 lstMetricas = self.NagiosConn.parsePerfData(service["perf_data"])
+                
                 for metrica in lstMetricas:
                     host.addSerie(service["description"], metrica, lstMetricas[metrica][0])
-                    
+
     def EnviarMetricas(self):
         '''Eviar los datos a Dynatrace'''
         self.DynaConn.sendMetrics()

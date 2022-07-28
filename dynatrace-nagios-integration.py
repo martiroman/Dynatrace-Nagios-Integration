@@ -38,6 +38,7 @@ class Integracion(object):
         self.NagiosConn = NagiosApp.Connection(NAGIOS_SOCKET)
         self.DynaConn = DynatraceApp.Connection(DT_API_URL, DT_API_TOKEN)
         self.lstHosts = []
+        self.lstEvents = []
 
     def CargarHosts(self):
         '''Obtiene el listado de hosts a monitorear'''
@@ -64,12 +65,29 @@ class Integracion(object):
             host.clearSeries()
             for service in lstServices:
                 
-                self.DynaConn.checkIfEvent(host.displayName, service["description"], service["state"])
+                self.checkIfEvent(host.displayName, service["description"], service["state"])
                 
                 lstMetricas = self.NagiosConn.parsePerfData(service["perf_data"])
                 
                 for metrica in lstMetricas:
                     host.addSerie(service["description"], metrica, lstMetricas[metrica][0])
+
+    def checkIfEvent(self, hostName, serviceName, state):
+        encontrado = False
+
+        for event in self.lstEvents:
+            if self.DynaConn.CompareEvents(event, serviceName, hostName):
+                encontrado = True
+
+        if encontrado == True:
+            #Si el evento tiene ACK enviar el Cierre a Dynatrace  
+            if state == 0:
+                print("eliminar evento")
+        else:
+            if state > 0:   
+                #Si el evento tiene ACK enviar el Cierre a Dynatrace              
+                oEvent = self.DynaConn.addEvent("CUSTOM_ALERT", serviceName, hostName)
+                self.lstEvents.append(oEvent)
 
     def EnviarMetricas(self):
         '''Eviar los datos a Dynatrace'''

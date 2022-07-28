@@ -35,7 +35,7 @@ class Serie(object):
 class Event(object):
     def __init__(self, eventType, title, entitySelector):
         self.eventType = eventType
-        self.title = title
+        self.title = "Alerta: " + title
         #Si es null toma la hora actual
         #self.startTime = startTime
         #self.endTime = endTime
@@ -43,13 +43,6 @@ class Event(object):
         self.timeout = 300
         self.entitySelector ="type(CUSTOM_DEVICE),entityName(" + entitySelector + ")" 
         self.properties = {}
-
-    def CompareEvents(event, title, hostname):
-        entitySelector ="type(CUSTOM_DEVICE),entityName(" + hostname + ")"
-        print(event.entitySelector +"-"+ entitySelector)
-        if event.title == title and event.entitySelector == entitySelector:
-            return True
-        return False
 
     def toJson(self):
         return json.dumps(self, default=lambda o: o.__dict__, 
@@ -99,24 +92,8 @@ class Connection(object):
     def addEvent(self, eventType, title, entitySelector):
         dEvent = Event(eventType, title, entitySelector)
         self.lstEvents.append(dEvent)
-            
-    def checkIfEvent(self, hostName, serviceName, state):
-        titulo = "Alerta: " + serviceName
-        encontrado = False
+        return dEvent
 
-        for event in self.lstEvents:
-            if Event.CompareEvents(event, titulo, hostName):
-                encontrado = True
-
-        if encontrado == True:
-            #Si el evento tiene ACK enviar el Cierre a Dynatrace  
-            if state == 0:
-                print("eliminar evento")
-        else:
-            if state > 0:   
-                #Si el evento tiene ACK enviar el Cierre a Dynatrace              
-                self.addEvent("CUSTOM_ALERT", titulo, hostName)
-            
     def sendMetrics(self):
         for host in self.lstHosts:
             r = requests.post(self.api_url + '/api/v1/entity/infrastructure/custom/' + host.displayName + '?Api-Token=' + self.api_token, json=json.loads(host.toJson()))
@@ -130,6 +107,13 @@ class Connection(object):
             print("\n PAYLOAD: ") 
             print(json.loads(event.toJson()))
             print(event.entitySelector + " | " + event.title + " | " + r.text)
+
+    def CompareEvents(self, event, serviceName, hostname):
+        title = "Alerta: " + serviceName
+        entitySelector ="type(CUSTOM_DEVICE),entityName(" + hostname + ")"
+        if event.title == title and event.entitySelector == entitySelector:
+            return True
+        return False
 
     def emptyCache(self):
         self.lstHosts = []

@@ -20,23 +20,19 @@ Dynatrace Type Events:
 import time
 import sched
 
-import DynatraceApp
-import NagiosApp
-import IntegrationErrors
+import App.DynatraceApp as DynatraceApp
+import App.NagiosApp as NagiosApp
+import App.IntegrationErrors as IntegrationErrors
 
-#####CONFIGURACION############################################################################################################
-DT_API_URL = CONFIGURAR
-DT_API_TOKEN = CONFIGURAR
-NAGIOS_SOCKET = '/usr/local/nagios/var/rw/nagios.qh'
-HOST_WHITELIST =  False #o ['host1','host2'...]
-SERVICE_WHITELIST = False #o ['service1','service2'...]
+with open('config.json', 'r') as file: config = json.load(file)
 
-#####CLASES###################################################################################################################
+HOST_WHITELIST = config["NAGIOS"]["HOST_WHITELIST"]
+SERVICE_WHITELIST = config["NAGIOS"]["SERVICE_WHITELIST"]
 
 class Integracion(object):
     def __init__(self):
-        self.NagiosConn = NagiosApp.Connection(NAGIOS_SOCKET)
-        self.DynaConn = DynatraceApp.Connection(DT_API_URL, DT_API_TOKEN)
+        self.NagiosConn = NagiosApp.Connection(config["NAGIOS"]["NAGIOS_SOCKET"])
+        self.DynaConn = DynatraceApp.Connection(config["DYNATRACE"]["API_URL"], config["DYNATRACE"]["API_TOKEN"])
         self.lstHosts = []
         self.lstEvents = []
 

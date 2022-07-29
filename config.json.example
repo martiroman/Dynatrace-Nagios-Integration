@@ -1,0 +1,15 @@
+{
+    "DYNATRACE": {
+        "API_URL" : "CONFIGURAR",
+        "API_TOKEN" : "CONFIGURAR"
+    },
+    "NAGIOS": {
+        "NAGIOS_SOCKET" : "/usr/local/nagios/var/rw/nagios.qh",
+        "HOST_WHITELIST" :  false,
+        "SERVICE_WHITELIST" :  false
+    },
+    "ALERTMANAGER": {
+        "SERVER" : "xx.xx.xx.xx",
+        "PORT" : 9999
+    }
+ }

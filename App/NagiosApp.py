@@ -3,7 +3,7 @@ Nagios LiveStatus
 
 Obtiene hosts y servicios asociados con sus respectivos estados
 '''
-import IntegrationErrors
+import App.IntegrationErrors as IntegrationErrors
 import re
 
 #https://github.com/arthru/python-mk-livestatus

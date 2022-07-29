@@ -19,9 +19,9 @@ Dynatrace Type Events:
 
 import time
 import sched
-
-import App.DynatraceApp as DynatraceApp
-import App.NagiosApp as NagiosApp
+import json
+import App.DynatraceApp as Dyna
+import App.NagiosApp as Nagios
 import App.IntegrationErrors as IntegrationErrors
 
 with open('config.json', 'r') as file: config = json.load(file)
@@ -31,10 +31,8 @@ SERVICE_WHITELIST = config["NAGIOS"]["SERVICE_WHITELIST"]
 
 class Integracion(object):
     def __init__(self):
-        self.NagiosConn = NagiosApp.Connection(config["NAGIOS"]["NAGIOS_SOCKET"])
-        self.DynaConn = DynatraceApp.Connection(config["DYNATRACE"]["API_URL"], config["DYNATRACE"]["API_TOKEN"])
-        self.lstHosts = []
-        self.lstEvents = []
+        self.NagiosConn = Nagios.Connection(config["NAGIOS"]["NAGIOS_SOCKET"])
+        self.DynaConn = Dyna.Connection(config["DYNATRACE"]["API_URL"], config["DYNATRACE"]["API_TOKEN"])
 
     def CargarHosts(self):
         '''Obtiene el listado de hosts a monitorear'''
@@ -46,12 +44,11 @@ class Integracion(object):
                 #TODO: Configurar puertos del host
                 dHost = self.DynaConn.addCustomHost(host['name'], host['address'], ['80','8080','443','8428','9100','9104','53862','53852'], 'Nagios', favicon, '', host['groups'][0])
                 dHost.addTag(host['groups'])
-                self.lstHosts.append(dHost)
 
     def CargarMetricas(self):
         '''Consulta los servicios de Nagios y asigna cada una de las metricas a los CustomHosts'''
 
-        for host in self.lstHosts:
+        for host in self.DynaConn.getHosts():
             lstServices = []
             lstTmpServices = self.NagiosConn.getMetricas(host.displayName)
             for nagServ in lstTmpServices:
@@ -61,30 +58,16 @@ class Integracion(object):
             host.clearSeries()
             for service in lstServices:
                 
-                self.checkIfEvent(host.displayName, service["description"], service["state"])
-                
+                stateError = True
+                if (service["state"] == 0): stateError = False
+
+                self.DynaConn.checkIsEvent(host.displayName, service["description"], stateError)
+
                 lstMetricas = self.NagiosConn.parsePerfData(service["perf_data"])
                 
                 for metrica in lstMetricas:
                     host.addSerie(service["description"], metrica, lstMetricas[metrica][0])
-
-    def checkIfEvent(self, hostName, serviceName, state):
-        encontrado = False
-
-        for event in self.lstEvents:
-            if self.DynaConn.CompareEvents(event, serviceName, hostName):
-                encontrado = True
-
-        if encontrado == True:
-            #Si el evento tiene ACK enviar el Cierre a Dynatrace  
-            if state == 0:
-                print("eliminar evento")
-        else:
-            if state > 0:   
-                #Si el evento tiene ACK enviar el Cierre a Dynatrace              
-                oEvent = self.DynaConn.addEvent("CUSTOM_ALERT", serviceName, hostName)
-                self.lstEvents.append(oEvent)
-
+    
     def EnviarMetricas(self):
         '''Eviar los datos a Dynatrace'''
         self.DynaConn.sendMetrics()

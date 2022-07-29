@@ -15,9 +15,11 @@ from flask import Flask, request, Response
 import App.DynatraceApp as Dyna
 import App.AlertManagerApp as Alert
 
+#TODO: GET events Dynatrace y quitar la lista
+
+#ERROR SI NO ENCUENTRA EL ARCHIVO
 with open('config.json', 'r') as file: config = json.load(file)
 
-lstEvents = []
 DynaConn = Dyna.Connection(config["DYNATRACE"]["API_URL"], config["DYNATRACE"]["API_TOKEN"])
 
 app = Flask(__name__)
@@ -36,32 +38,24 @@ def webhook():
 
     if request.method == 'POST':
         data = request.json
+
         for alert in data['alerts']:
-            print(alert['status'])
-            print(alert['labels']['alertname'])
-            print(alert['labels']['instance'])
-            print(alert['labels']['severity'])
-            print(alert['labels']['job'])
+            
+            host = alert['labels']['instance'].split(":")[0]
+            alertName = alert['labels']['alertname']
+            statusError = False
+            if alert['status'] != "resolved":
+                statusError = True
+
+            DynaConn.checkIsEvent(host, alertName, statusError)
+
             sys.stdout.flush()
             
+            DynaConn.sendEvents()
+
         return Response('Alerts received', status=200)
     else:
         return Response('Error request', status=400)
 
-def checkIfEvent(hostName, serviceName, state):
-        encontrado = False
-
-        for event in lstEvents:
-            if DynaConn.CompareEvents(event, serviceName, hostName):
-                encontrado = True
-
-        if encontrado == True:
-            if state == "resolved":
-                print("eliminar evento")
-        else:
-            if state == "firing":   
-                oEvent = DynaConn.addEvent("CUSTOM_ALERT", serviceName, hostName)
-                lstEvents.append(oEvent)
-
 if __name__ == '__main__':
-    app.run(debug=True, host=SERVER, port=PORT)
+    app.run(debug=True, host=config["ALERTMANAGER"]["SERVER"], port=config["ALERTMANAGER"]["PORT"])

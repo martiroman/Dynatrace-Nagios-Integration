@@ -6,7 +6,6 @@ Dynatrace API
 
 '''
 
-from operator import truediv
 import requests
 import time
 import datetime
@@ -50,9 +49,9 @@ class Event(object):
         
 # "hostNames": [ "coffee-machine.dynatrace.internal.com" ]                        
 class CustomHost(object):
-    def __init__(self, displayName, ipAdresses, listenPorts, type, favicon, configUrl, grupo):
+    def __init__(self, displayName, ipAddresses, listenPorts, type, favicon, configUrl, grupo):
         self.displayName = displayName
-        self.ipAdresses = [ipAdresses]
+        self.ipAddresses = [ipAddresses]
         self.listenPorts = listenPorts
         self.type = type
         self.favicon = favicon
@@ -60,7 +59,7 @@ class CustomHost(object):
         self.series = []
         self.tags = []
         self.group = grupo
-        self.properties = { 'ip' : ipAdresses }
+        #self.properties = { 'ip' : ipAddresses }
 
     def addSerie(self, servicename, metrica, valor):
         dt = datetime.datetime.now()
@@ -89,10 +88,16 @@ class Connection(object):
         self.lstHosts.append(dHost)
         return dHost
     
+    def getHosts(self):
+        return self.lstHosts
+
     def addEvent(self, eventType, title, entitySelector):
         dEvent = Event(eventType, title, entitySelector)
         self.lstEvents.append(dEvent)
         return dEvent
+
+    def getEvents(self):
+        return self.lstEvents
 
     def sendMetrics(self):
         for host in self.lstHosts:
@@ -108,16 +113,32 @@ class Connection(object):
             print(json.loads(event.toJson()))
             print(event.entitySelector + " | " + event.title + " | " + r.text)
 
-    def CompareEvents(self, event, serviceName, hostname):
-        title = "Alerta: " + serviceName
-        entitySelector ="type(CUSTOM_DEVICE),entityName(" + hostname + ")"
-        if event.title == title and event.entitySelector == entitySelector:
-            return True
-        return False
-
     def emptyCache(self):
         self.lstHosts = []
 
     def createMetric():
         #TODO: Crear metrica en Dyna
         '''Pendiente'''
+
+    def checkIsEvent(self, hostName, serviceName, errorState):
+        encontrado = False
+
+        for event in self.lstEvents:
+            if self.CompareEvents(event, serviceName, hostName):
+                encontrado = True
+
+        if encontrado == True:
+            #Si el evento tiene ACK enviar el Cierre a Dynatrace  
+            if not errorState:
+                print("eliminar evento")
+        else:
+            if errorState:   
+                #Si el evento tiene ACK enviar el Cierre a Dynatrace              
+                self.DynaConn.addEvent("CUSTOM_ALERT", serviceName, hostName)
+
+    def CompareEvents(self, event, serviceName, hostname):
+        title = "Alerta: " + serviceName
+        entitySelector ="type(CUSTOM_DEVICE),entityName(" + hostname + ")"
+        if event.title == title and event.entitySelector == entitySelector:
+            return True
+        return False

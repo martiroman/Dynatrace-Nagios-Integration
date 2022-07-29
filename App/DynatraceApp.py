@@ -1,11 +1,13 @@
 '''
 Dynatrace API
 
+Envia a Dynatrace:
 + CustomHosts
 + Metrics
-
++ Events
 '''
 
+from xml.sax.handler import EntityResolver
 import requests
 import time
 import datetime
@@ -34,13 +36,13 @@ class Serie(object):
 class Event(object):
     def __init__(self, eventType, title, entitySelector):
         self.eventType = eventType
-        self.title = "Alerta: " + title
+        self.title = title
         #Si es null toma la hora actual
         #self.startTime = startTime
         #self.endTime = endTime
         #The timeout will automatically be capped to a maximum of 300 minutes (5 hours). Problem-opening events can be refreshed and therefore kept open by sending the same payload again. 
         self.timeout = 300
-        self.entitySelector ="type(CUSTOM_DEVICE),entityName(" + entitySelector + ")" 
+        self.entitySelector = entitySelector
         self.properties = {}
 
     def toJson(self):
@@ -113,8 +115,13 @@ class Connection(object):
             print(json.loads(event.toJson()))
             print(event.entitySelector + " | " + event.title + " | " + r.text)
 
+    def searchDynaHost(self, ipAddress):
+        r = requests.get(self.api_url + '/api/v2/entities/?entitySelector=TYPE%28HOST%29%2C%20ipAddress%28' + ipAddress + '%29&Api-Token=' + self.api_token)
+        return json.loads(r.text)
+
     def emptyCache(self):
         self.lstHosts = []
+        self.lstEvents = []
 
     def createMetric():
         #TODO: Crear metrica en Dyna
@@ -123,22 +130,35 @@ class Connection(object):
     def checkIsEvent(self, hostName, serviceName, errorState):
         encontrado = False
 
+        entitySelector = self.getEntitySelector(hostName) 
+
         for event in self.lstEvents:
-            if self.CompareEvents(event, serviceName, hostName):
+            if event.title == serviceName and event.entitySelector == entitySelector:
                 encontrado = True
 
         if encontrado == True:
-            #Si el evento tiene ACK enviar el Cierre a Dynatrace  
+            #TODO: Si el evento tiene ACK enviar el Cierre a Dynatrace  
             if not errorState:
                 print("eliminar evento")
         else:
             if errorState:   
                 #Si el evento tiene ACK enviar el Cierre a Dynatrace              
-                self.DynaConn.addEvent("CUSTOM_ALERT", serviceName, hostName)
+                self.addEvent("CUSTOM_ALERT", serviceName, entitySelector)
 
-    def CompareEvents(self, event, serviceName, hostname):
-        title = "Alerta: " + serviceName
-        entitySelector ="type(CUSTOM_DEVICE),entityName(" + hostname + ")"
-        if event.title == title and event.entitySelector == entitySelector:
-            return True
-        return False
+    def getEntitySelector(self, hostName):
+        dHost = False
+        for dHost in self.lstHosts:
+            if dHost.displayName == hostName:
+                break
+        
+        busqueda = hostName
+        if dHost:
+            busqueda = dHost.ipAddresses[0]
+
+        entityType = "CUSTOM_DEVICE" 
+        if self.searchDynaHost(busqueda)["totalCount"] > 0:
+            entityType = "HOST" 
+        
+        entitySelector = "type(" + entityType + "),ipAddress(" + busqueda + ")"
+        
+        return entitySelector

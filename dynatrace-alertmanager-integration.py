@@ -15,8 +15,6 @@ from flask import Flask, request, Response
 import App.DynatraceApp as Dyna
 import App.AlertManagerApp as Alert
 
-#TODO: GET events Dynatrace y quitar la lista
-
 #ERROR SI NO ENCUENTRA EL ARCHIVO
 with open('config.json', 'r') as file: config = json.load(file)
 

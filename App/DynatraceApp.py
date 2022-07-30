@@ -43,7 +43,11 @@ class Event(object):
         #The timeout will automatically be capped to a maximum of 300 minutes (5 hours). Problem-opening events can be refreshed and therefore kept open by sending the same payload again. 
         self.timeout = 300
         self.entitySelector = entitySelector
-        self.properties = {}
+        self.properties = {
+            "dt.event.impact_level" : "Infrastructure",
+            "dt.event.allow_davis_merge" : "true",
+            "dt.event.group_label" : "Custom alert"
+        }
 
     def toJson(self):
         return json.dumps(self, default=lambda o: o.__dict__, 

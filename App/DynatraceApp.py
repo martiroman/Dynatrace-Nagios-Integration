@@ -44,10 +44,11 @@ class Event(object):
         self.timeout = 300
         self.entitySelector = entitySelector
         self.properties = {
-            "dt.event.impact_level" : "Infrastructure",
-            "dt.event.allow_davis_merge" : "true",
-            "dt.event.group_label" : "Custom alert"
+            "dt.event.allow_davis_merge" : "false",
         }
+
+    def setProperty(self, nombre, valor):
+        self.properties["'" + nombre + "'"] = valor
 
     def toJson(self):
         return json.dumps(self, default=lambda o: o.__dict__, 
@@ -97,8 +98,12 @@ class Connection(object):
     def getHosts(self):
         return self.lstHosts
 
-    def addEvent(self, eventType, title, entitySelector):
+    def addEvent(self, eventType, title, entitySelector, properties = {}): 
+
         dEvent = Event(eventType, title, entitySelector)
+        
+        if properties: dEvent.properties.update(properties)
+        
         self.lstEvents.append(dEvent)
         return dEvent
 
@@ -131,7 +136,7 @@ class Connection(object):
         #TODO: Crear metrica en Dyna
         '''Pendiente'''
 
-    def checkIsEvent(self, hostName, serviceName, errorState):
+    def checkIsEvent(self, hostName, serviceName, errorState, properties = {}):
         encontrado = False
 
         entitySelector = self.getEntitySelector(hostName) 
@@ -147,7 +152,7 @@ class Connection(object):
         else:
             if errorState:   
                 #Si el evento tiene ACK enviar el Cierre a Dynatrace              
-                self.addEvent("CUSTOM_ALERT", serviceName, entitySelector)
+                self.addEvent("CUSTOM_ALERT", serviceName, entitySelector, properties)
 
     def getEntitySelector(self, hostName):
         dHost = False

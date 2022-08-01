@@ -24,7 +24,7 @@ import App.DynatraceApp as Dyna
 import App.NagiosApp as Nagios
 import App.IntegrationErrors as IntegrationErrors
 
-with open('config.json', 'r') as file: config = json.load(file)
+with open('/etc/dynatrace-integrations/config.json', 'r') as file: config = json.load(file)
 
 HOST_WHITELIST = config["NAGIOS"]["HOST_WHITELIST"]
 SERVICE_WHITELIST = config["NAGIOS"]["SERVICE_WHITELIST"]

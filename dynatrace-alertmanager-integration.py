@@ -16,7 +16,7 @@ import App.DynatraceApp as Dyna
 import App.AlertManagerApp as Alert
 
 #ERROR SI NO ENCUENTRA EL ARCHIVO
-with open('config.json', 'r') as file: config = json.load(file)
+with open('/etc/dynatrace-integrations/config.json', 'r') as file: config = json.load(file)
 
 DynaConn = Dyna.Connection(config["DYNATRACE"]["API_URL"], config["DYNATRACE"]["API_TOKEN"])
 
